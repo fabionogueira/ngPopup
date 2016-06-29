@@ -1,0 +1,34 @@
+.ng-popup{
+    position:fixed;
+    top:0;
+    left:0;
+    right:0;
+    bottom:0;
+    background:rgba(0, 0, 0, 0.57);
+    z-index:10000;
+}
+.ng-popup-content{
+    position:absolute;
+    top:0;
+    left:0;
+    width:100%;
+    height:100%;
+    background:#fff;
+}
+
+/* animação do background */
+.ng-popup.ng-hide-add {
+  opacity: 1.0;
+  display: block !important;
+  transition: opacity 1s;
+}
+.ng-popup.ng-hide-add-active {
+  opacity: 0;
+}
+
+/*.ng-popup{opacity:0;transition:all 400ms;}
+.ng-popup.ng-popup-show{opacity:1;display:block;}*/
+
+/* animação do popup content */
+/*.ng-popup-content{transform:translate3d(0, 0, 0);transition:all cubic-bezier(0.1, 0.7, 0.1, 1) 400ms;}
+.ng-popup.ng-popup-hide .ng-popup-content{transform:translate3d(0, 90%, 0);}*/
