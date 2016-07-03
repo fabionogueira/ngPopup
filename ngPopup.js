@@ -1,12 +1,12 @@
 /**
  * ngPopup.js
- * @version 1.0.2
+ * @version 1.0.4
  * @author Fábio Nogueira <fabio.bacabal@gmail.com>
  * @requires ngAnimate, ngRoute
  */
- 
 (function(){
     var popupsContainer, ngPopupService, $animate, $timeout,
+        idIndex          = 0,
         waitForNgInclude = [],
         ngIncludePending = {},
         popupsRegistered = {},
@@ -48,7 +48,6 @@
                 
                 a = [];
             });
-            
             $rootScope.$on('$locationChangeStart', function(event){  
                 var e, url;
                 
@@ -117,7 +116,7 @@
     
     ngPopupService = {
         create: function($element, id){
-            var oldId = $element.attr('id') || id;
+            var oldId = $element.attr('id') || id || ('popup-id-'+ (idIndex++) );
             
             popupsRegistered[id] = oldId;
             
@@ -142,9 +141,10 @@
          * @param {HTMLElement} popupElement Elemento popup a ser exibido
          * @param {HTMLElement} referenceElement (optional) Elemento de referência de exibição do popup
          */
-        calculatePosition: function(options, popupElement, referenceElement) {
-            var i, j, x, y, s, xp, yp, a1, a2, refRect, popupRect, docRect;
+        calculatePosition: function(options, popupElement) {
+            var i, j, x, y, s, xp, yp, a1, a2, refRect, popupRect, docRect, referenceElement;
             
+            referenceElement = options.origin;
             xp = yp = '';
 
             if (referenceElement && options.position) {
@@ -253,16 +253,16 @@
         getElement: function(elementOrId){
             return getPopupElement(elementOrId);
         },
-        show: function (elementOrId, options) {
+        show: function (containerOrId, options, elementContent/*elemento a ser posicionado*/) {
             var r, e, t, tid, $element;
             
-            $element = getPopupElement(elementOrId);
+            $element = getPopupElement(containerOrId);
             
             if (!$element){
                 //se tem template pendente, aguarda o carregamento
                 if ( !angular.equals({}, ngIncludePending) ){
                     waitForNgInclude.push({
-                        elementOrId: elementOrId,
+                        elementOrId: containerOrId,
                         options    : options
                     });
                 }
@@ -285,10 +285,14 @@
 
                     //calcula a posiçao do popup
                     $element.css({display:'block'});
-                    r = ngPopupService.calculatePosition(options, e, options.origin);
+                    r = ngPopupService.calculatePosition(options, elementContent || e);
 
                     //posiciona o popup
-                    $element.addClass(r.str_xy).css({"top":r.y + 'px', "left":r.x + 'px'});
+                    if (elementContent){
+                        angular.element(elementContent).addClass(r.str_xy).css({"top":r.y + 'px', "left":r.x + 'px'});
+                    }else{
+                        $element.addClass(r.str_xy).css({"top":r.y + 'px', "left":r.x + 'px'});
+                    }
 
                     //adiciona a classe css ao elemento referência
     //                if (t) {

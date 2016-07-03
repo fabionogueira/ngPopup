@@ -1,3 +1,11 @@
+/**
+ * ngPopup.css
+ * @version 1.0.3
+ */
+
+[ng-popup], .ng-popup{
+    display:none;
+}
 .ng-popup{
     position:fixed;
     top:0;
