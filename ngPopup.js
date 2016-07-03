@@ -1,6 +1,6 @@
 /**
  * ngPopup.js
- * @version 1.0.4
+ * @version 1.0.5
  * @author Fábio Nogueira <fabio.bacabal@gmail.com>
  * @requires ngAnimate, ngRoute
  */
@@ -332,7 +332,7 @@
                 $timeout(function(){
                     $animate.addClass($element, NG_POPUP_HIDE_CLASS).then(function(){
                         $element.css({display:'none'});
-                        if (options.onComplete) onComplete();
+                        if (options.onComplete) options.onComplete();
                     });
                 });
             }
