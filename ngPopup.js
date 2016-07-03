@@ -1,20 +1,22 @@
 /**
  * ngPopup.js
- * @version 1.0.0
+ * @version 1.0.2
  * @author Fábio Nogueira <fabio.bacabal@gmail.com>
  * @requires ngAnimate, ngRoute
  */
  
 (function(){
     var popupsContainer, ngPopupService, $animate, $timeout,
+        waitForNgInclude = [],
+        ngIncludePending = {},
         popupsRegistered = {},
         DEFAULT_OPTIONS = {
             offsetX: 0,
             offsetY: 0,
             position: 'left|bottom'
         },
-        NG_HIDE_CLASS = 'ng-popup-hide',
-        NG_POPUP_URL  = '/ng-popup';
+        NG_POPUP_HIDE_CLASS = window.NG_POPUP_HIDE_CLASS || 'ng-popup-hide',
+        NG_POPUP_URL        = window.NG_POPUP_URL || '/ng-popup';
     
     angular
         .module('ngPopup', ['ngAnimate', 'ngRoute'])
@@ -24,6 +26,29 @@
         }])
         .run(['$popup', '$location', "$route", '$rootScope', '$timeout', function($popup, $location, $route, $rootScope, timeout){
             $timeout = timeout;
+            
+            $rootScope.$on('$includeContentRequested', function(event, templateName){
+                ngIncludePending[templateName] = true; 
+            });
+            $rootScope.$on('$includeContentLoaded', function(event, templateName){
+                var i, o, a=[];
+                
+                delete(ngIncludePending[templateName]);
+                
+                for (i=0; i<waitForNgInclude.length; i++){
+                    a.push(waitForNgInclude[i]);
+                }
+                
+                waitForNgInclude = [];
+                
+                for (i=0; i<a.length; i++){
+                    o = a[i];                    
+                    ngPopupService.show(o.elementOrId, o.options);
+                }
+                
+                a = [];
+            });
+            
             $rootScope.$on('$locationChangeStart', function(event){  
                 var e, url;
                 
@@ -75,6 +100,7 @@
                     }
                 }
             });
+            
         }])
         .directive('ngPopup', ['$popup', function($popup){
             return {
@@ -97,7 +123,7 @@
             
             $element
                 .attr('id', oldId)
-                .addClass('ng-popup '+NG_HIDE_CLASS)
+                .addClass('ng-popup '+NG_POPUP_HIDE_CLASS)
                 .css({display:'none'});
             
             $element[0].$$ngPopupId = id;
@@ -232,47 +258,56 @@
             
             $element = getPopupElement(elementOrId);
             
-            if ($element && !$element[0].$$ngPopupIsVisible) {
-                options = angular.extend({}, DEFAULT_OPTIONS, options);
-                
-                t = options.origin;
-                e = $element[0];
-                
-                e.$$ngPopupPrevious  = this.getTopMost() ? true : false;
-                e.$$ngPopupIsVisible = true;
-                
-                if (angular.isFunction(options)) {
-                    options = {onComplete: options};
-                }
-                
-                //coloca o popup sobre todos os outros no DOM
-                popupsContainer.appendChild($element[0]);
-                
-                //calcula a posiçao do popup
-                $element.css({display:'block'});
-                r = ngPopupService.calculatePosition(options, e, options.origin);
-
-                //posiciona o popup
-                $element.addClass(r.str_xy).css({"top":r.y + 'px', "left":r.x + 'px'});
-
-                //adiciona a classe css ao elemento referência
-//                if (t) {
-//                    tid = t.getAttribute('id');
-//                    if (!tid) {
-//                        tid = (new Date()).getTime();
-//                    }
-//                    angular.element(t)
-//                        .attr('id', tid)
-//                        .addClass('ng-popup-origin-visible');
-//                }
-                
-                $timeout(function(){
-                    $animate.removeClass($element, NG_HIDE_CLASS).then(function(){
-                        if (options.onComplete) onComplete();
+            if (!$element){
+                //se tem template pendente, aguarda o carregamento
+                if ( !angular.equals({}, ngIncludePending) ){
+                    waitForNgInclude.push({
+                        elementOrId: elementOrId,
+                        options    : options
                     });
-                });
+                }
+            }else{
+                if (!$element[0].$$ngPopupIsVisible) {
+                    options = angular.extend({}, DEFAULT_OPTIONS, options);
+
+                    t = options.origin;
+                    e = $element[0];
+
+                    e.$$ngPopupPrevious  = this.getTopMost() ? true : false;
+                    e.$$ngPopupIsVisible = true;
+
+                    if (angular.isFunction(options)) {
+                        options = {onComplete: options};
+                    }
+
+                    //coloca o popup sobre todos os outros no DOM
+                    popupsContainer.appendChild($element[0]);
+
+                    //calcula a posiçao do popup
+                    $element.css({display:'block'});
+                    r = ngPopupService.calculatePosition(options, e, options.origin);
+
+                    //posiciona o popup
+                    $element.addClass(r.str_xy).css({"top":r.y + 'px', "left":r.x + 'px'});
+
+                    //adiciona a classe css ao elemento referência
+    //                if (t) {
+    //                    tid = t.getAttribute('id');
+    //                    if (!tid) {
+    //                        tid = (new Date()).getTime();
+    //                    }
+    //                    angular.element(t)
+    //                        .attr('id', tid)
+    //                        .addClass('ng-popup-origin-visible');
+    //                }
+
+                    $timeout(function(){
+                        $animate.removeClass($element, NG_POPUP_HIDE_CLASS).then(function(){
+                            if (options.onComplete) onComplete();
+                        });
+                    });
+                }
             }
-            
         },
         hide: function (elementOrId, options) {
             var e, $element = getPopupElement(elementOrId);
@@ -291,7 +326,7 @@
                 e.$$ngPopupPrevious = false;
                 
                 $timeout(function(){
-                    $animate.addClass($element, NG_HIDE_CLASS).then(function(){
+                    $animate.addClass($element, NG_POPUP_HIDE_CLASS).then(function(){
                         $element.css({display:'none'});
                         if (options.onComplete) onComplete();
                     });

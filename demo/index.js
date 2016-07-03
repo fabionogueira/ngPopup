@@ -17,6 +17,8 @@ angular
         });
         
     }])
-    .controller('AppCtrl', ['$scope', function($scope){
-         
+    .controller('AppCtrl', ['$scope', '$popup', function($scope, $popup){
+         $scope.showPopup1 = function(){
+             $popup.show('/popup1');
+         };
     }]);
