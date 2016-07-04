@@ -1,8 +1,11 @@
 /**
  * ngPopup.js
- * @version 1.0.5
+ * @version 1.0.6
  * @author Fábio Nogueira <fabio.bacabal@gmail.com>
  * @requires ngAnimate, ngRoute
+ * @description
+ *      ngPopup usa getBoundingClientRect() para posicionar o elemento na tela, portanto só irá fincionar corretamento com
+ *      body.margin=0 e body.padding=0
  */
 (function(){
     var popupsContainer, ngPopupService, $animate, $timeout,
@@ -21,8 +24,11 @@
     angular
         .module('ngPopup', ['ngAnimate', 'ngRoute'])
         .config(['$routeProvider', function($routeProvider){
+            document.body.style.margin = 0;
+            document.body.style.padding= 0;
             document.body.appendChild(popupsContainer);
             $routeProvider.when(NG_POPUP_URL, {});
+            
         }])
         .run(['$popup', '$location', "$route", '$rootScope', '$timeout', function($popup, $location, $route, $rootScope, timeout){
             $timeout = timeout;
