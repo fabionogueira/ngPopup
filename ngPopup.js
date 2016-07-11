@@ -1,14 +1,14 @@
 /**
  * ngPopup.js
- * @version 1.0.6
+ * @version 1.2.0
  * @author Fábio Nogueira <fabio.bacabal@gmail.com>
- * @requires ngAnimate, ngRoute
+ * @requires ngAnimate, ngRoute, ngUI
  * @description
  *      ngPopup usa getBoundingClientRect() para posicionar o elemento na tela, portanto só irá fincionar corretamento com
  *      body.margin=0 e body.padding=0
  */
 (function(){
-    var popupsContainer, ngPopupService, $animate, $timeout,
+    var popupsContainer, ngPopupService, $animate, $timeout, $route, $location,
         idIndex          = 0,
         waitForNgInclude = [],
         ngIncludePending = {},
@@ -22,17 +22,32 @@
         NG_POPUP_URL        = window.NG_POPUP_URL || '/ng-popup';
     
     angular
-        .module('ngPopup', ['ngAnimate', 'ngRoute'])
+        .module('ngPopup', ['ngAnimate', 'ngRoute', 'ngUI'])
         .config(['$routeProvider', function($routeProvider){
             document.body.style.margin = 0;
             document.body.style.padding= 0;
             document.body.appendChild(popupsContainer);
             $routeProvider.when(NG_POPUP_URL, {});
-            
         }])
-        .run(['$popup', '$location', "$route", '$rootScope', '$timeout', function($popup, $location, $route, $rootScope, timeout){
+        .run(['$popup', '$location', "$route", '$rootScope', '$timeout', function($popup, location, route, $rootScope, timeout){
             $timeout = timeout;
+            $location= location;
+            $route   = route;
             
+            //muda o path sem mudar ng-view
+            var original = $location.path;
+            $location.path = function (path, reload) {
+                if (reload === false) {
+                    $location.$$ngPopup = true;
+                    var lastRoute = $route.current;
+                    var un = $rootScope.$on('$locationChangeSuccess', function () {
+                        $route.current = lastRoute;
+                        un();
+                    });
+                }
+                return original.apply($location, [path]);
+            };
+
             $rootScope.$on('$includeContentRequested', function(event, templateName){
                 ngIncludePending[templateName] = true; 
             });
@@ -55,15 +70,12 @@
                 a = [];
             });
             $rootScope.$on('$locationChangeStart', function(event){  
-                var e, url;
-                
-                url = $location.url();
+                var e, url=$location.url();
                 
                 if (url===NG_POPUP_URL){
-                    if (!$location.$$ngPopup){
-                        //se chegou aqui significa que está iniciando a aplicação com a url /ng-popup
+                    if (!$location.$$ngPopup){ //está iniciando a aplicação com a url /ng-popup
                         $location.url('/');
-                    }
+                    }                    
                     return false;
                 }
                 
@@ -72,32 +84,24 @@
                 //se a url aponta para um popup
                 e = $popup.getElement(url);
                 if (e){
-                    //se nenhuma ainda não foi definida nenhuma rota url
+                    //se nenhuma ainda não foi definida nenhuma rota na url
                     if (!$route.current || ($route.current && !$route.current.$$route)){
                         //  Adiciona a url /ng-popup para possibilitar que ao usar o botão voltar do navegador, o popup possa fechar automaticamente,
-                        //caso contrário, sairia da página atual.
-                        $location.$$ngPopup = true;
-                        $location.url(NG_POPUP_URL);
+                        //caso contrário sairia da página atual.
+                        $location.path(NG_POPUP_URL, false); //mudança de path sem mudar a ng-view
                     }
                     
                     //exibe o popup e cancela a mudança de rota
                     $popup.show(e);
-                    event.preventDefault();
+                    cancelChangeRoute(event);
                 }else{
-                    //  Sei que a url não aponta para um popup, então
-                    //verifico se existe um popup visível
+                    //sei que a url não aponta para um popup, então verifico se existe um popup visível
                     e = $popup.getTopMost();                    
                     if (e){
-                        //Agora sei que tem pelo menos um popup visível.
-                        //  Verifico se não tem um outro popup por baixo do popup visível e
-                        //se a url atual é /ng-popup.
-                        if ( !($route.current.$$route && $route.current.$$route.originalPath===NG_POPUP_URL && !e[0].$$ngPopupPrevious) ){
-//                            if ($route.current.$$route.originalPath!==url && $route.routes[url]){
-//                                return $popup.hideAll();
-//                            }                            
-                            event.preventDefault();
+                        //agora sei que tem pelo menos um popup visível.
+                        if (!e.$$ngPopupPrevious && $route.current && $route.current.$$route.originalPath!==NG_POPUP_URL){
+                            cancelChangeRoute(event);
                         }
-                        
                         $popup.hide(e);
                     }else{
                         //hide all popup
@@ -106,12 +110,101 @@
                 }
             });
             
+            function cancelChangeRoute(event){
+                event.preventDefault();
+                $rootScope.$broadcast('$locationChangeCancel');
+            }
         }])
         .directive('ngPopup', ['$popup', function($popup){
             return {
                 restrict: 'AE',
                 link: function ($scope, $element, attr) {
                     $popup.create($element, attr.ngPopup);
+                }
+            };
+        }])
+        .directive('ngPopupClose', ['$popup', '$ui', function($popup, $ui){
+            return {
+                restrict: 'AE',
+                link: function ($scope, $element, attr){
+                    $element.on('click', onClick);
+                    $scope.$on('$destroy', function(){
+                        $element.off('click', onClick);
+                    });
+                    
+                    function onClick(){
+                        var e = $ui.DOM.closet($element, '[ng-popup]') || $ui.DOM.closet($element, '[ng-ui-popup]');
+                        $popup.hide(e);
+                    }
+                }
+            };
+        }])
+        .directive('ngUiPopup', ['$popup', '$ui', function($popup, $ui){
+            return {
+                restrict: 'AE',
+                link: function ($scope, $element, attr) {
+                    var self, name = attr.ngUiPopup;
+                    
+                    $popup.create($element, attr.ngUiPopup);
+                    $element[0].$$isNgUiPopup = true;
+                    
+                    if (name){
+                        $scope.$return = function(a,b,c,d,e){
+                            if ($element[0].$$onHide){
+                                var fn = $element[0].$$onHide;
+                                delete($element[0].$$onHide);
+                                
+                                fn(a,b,c,d,e);
+                            }
+                        };
+                        $scope.$returnAfter = function(a,b,c,d,e){
+                            if ($element[0].$$onHide){
+                                var fn = $element[0].$$onHide;
+                                delete($element[0].$$onHide);
+                                
+                                $popup.hide($element, function(){
+                                    fn(a,b,c,d,e);
+                                });
+                            }else{
+                                $popup.hide($element);
+                            }
+                        };
+                        $scope.$returnBefore = function(a,b,c,d,e){
+                            if ($element[0].$$onHide){
+                                var fn = $element[0].$$onHide;
+                                delete($element[0].$$onHide);
+                                
+                                fn(a,b,c,d,e);
+                                $popup.hide($element);
+                            }else{
+                                $popup.hide($element);
+                            }
+                        };
+                        
+                        name = name.replace(/\//g,'');
+                        self = {
+                            show: function(onShow, onHideReturn){
+                                $element[0].$$onHide = onHideReturn;
+                                $element[0].$$onHideCancel = true;
+                                $popup.show($element, onShow);
+                            },
+                            hide: function(fn){
+                                $popup.hide($element, fn);
+                            },
+                            call: function(fnName){
+                                var a, fn = $scope[fnName];
+                                if (angular.isFunction(fn)){
+                                    a = Array.prototype.slice.call(arguments);
+                                    a.shift();
+                                    fn.apply($scope, a);
+                                }
+                                return this;
+                            }
+                        };
+                        
+                        $ui.register($scope, self, $element, name);
+                    }
+                    
                 }
             };
         }])
@@ -132,6 +225,7 @@
                 .css({display:'none'});
             
             $element[0].$$ngPopupId = id;
+            $element[0].$$ngPopupCloseByEsc = $element.attr('ng-popup-keyclose')===undefined ? false : true;
         },
         destroy: function(elementOrId){
             var $element = getPopupElement(elementOrId);
@@ -260,7 +354,7 @@
             return getPopupElement(elementOrId);
         },
         show: function (containerOrId, options, elementContent/*elemento a ser posicionado*/) {
-            var r, e, t, tid, $element;
+            var r, e, t, tid, $element, fn=options;
             
             $element = getPopupElement(containerOrId);
             
@@ -282,8 +376,8 @@
                     e.$$ngPopupPrevious  = this.getTopMost() ? true : false;
                     e.$$ngPopupIsVisible = true;
 
-                    if (angular.isFunction(options)) {
-                        options = {onComplete: options};
+                    if (angular.isFunction(fn)) {
+                        options.onComplete = fn;
                     }
 
                     //coloca o popup sobre todos os outros no DOM
@@ -310,10 +404,26 @@
     //                        .attr('id', tid)
     //                        .addClass('ng-popup-origin-visible');
     //                }
-
+                    
+                    //se nenhuma rota foi definida ainda
+                    if (!$route.current || ($route.current && (!$route.current.$$route || $route.current.$$route.originalPath==='/' ) )){
+                        //  Adiciona a url /ng-popup para possibilitar que ao usar o botão voltar do navegador, o popup possa fechar automaticamente,
+                        //caso contrário, sairia da página atual.
+                        $location.path(NG_POPUP_URL, false);
+                    }
+                    
+                    
                     $timeout(function(){
+                        if ($element[0].$$isNgUiPopup){
+                            $element.scope().$broadcast('$popupBeforeShow');
+                        }
+                        
                         $animate.removeClass($element, NG_POPUP_HIDE_CLASS).then(function(){
-                            if (options.onComplete) onComplete();
+                            if (options.onComplete) options.onComplete();
+                            
+                            if ($element[0].$$isNgUiPopup){
+                                $element.scope().$broadcast('$popupShow');
+                            }
                         });
                     });
                 }
@@ -332,6 +442,11 @@
                     };
                 }
                 
+                //se não tem um popup por baixo e a url atual for /ng-popup
+                if (!e.$$ngPopupPrevious && $location.url()===NG_POPUP_URL){
+                    $location.path('/', false);
+                }
+                
                 e.$$ngPopupIsVisible= false;
                 e.$$ngPopupPrevious = false;
                 
@@ -339,6 +454,16 @@
                     $animate.addClass($element, NG_POPUP_HIDE_CLASS).then(function(){
                         $element.css({display:'none'});
                         if (options.onComplete) options.onComplete();
+                        if ($element[0].$$onHide) {
+                            var fn = $element[0].$$onHide, cancel = $element[0].$$onHideCancel;
+                            
+                            delete($element[0].$$onHide);
+                            delete($element[0].$$onHideCancel);
+                            
+                            if (!cancel){
+                                fn();
+                            }
+                        }
                     });
                 });
             }
@@ -404,5 +529,17 @@
     
     popupsContainer = document.createElement('div');
     popupsContainer.style.cssText = 'position:absolute;top:0;left:0;';
+    
+    angular.element(document).on('keydown', function(event){
+        var e, keyCode = event.which || event.keyCode;
+
+        if (keyCode===27){
+            e = ngPopupService.getTopMost();
+            
+            if (e && e[0].$$ngPopupCloseByEsc){
+                ngPopupService.hide(e);
+            }
+        }
+    });
     
 }());
