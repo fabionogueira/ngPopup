@@ -1,6 +1,7 @@
 /**
  * ngPopup.js
  * @version 1.2.0
+ * @link http://ngmodules.org/modules/ngPopup
  * @author Fábio Nogueira <fabio.bacabal@gmail.com>
  * @requires ngAnimate, ngRoute, ngUI
  * @description
